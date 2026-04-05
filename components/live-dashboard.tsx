@@ -1,14 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
+import { ExternalLink, Users, AlertCircle, Ban, Activity, Zap, FileDigit, XCircle, Clock, CheckCircle2, Server, Globe2, LayoutDashboard, Database, RefreshCcw } from 'lucide-react';
 
 import { formatDateTime, formatRelativeTime } from '@/lib/dashboard/time';
-import type {
-  DashboardOverview,
-  DistributionSnapshot,
-  PoolSnapshot,
-  SourceStatus
-} from '@/lib/dashboard/types';
+import type { DashboardOverview, DistributionSnapshot, PoolSnapshot, SourceStatus } from '@/lib/dashboard/types';
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat('zh-CN').format(value);
@@ -34,32 +31,73 @@ function statusTone(source: SourceStatus) {
   return 'bad';
 }
 
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const itemVariants: Variants = {
+  hidden: { opacity: 0, y: 15 },
+  show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
+};
+
+function AnimatedNumber({ value }: { value: string | number }) {
+  return (
+    <AnimatePresence mode="popLayout" initial={false}>
+      <motion.span
+        key={value}
+        initial={{ opacity: 0, y: -15, filter: 'blur(4px)' }}
+        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+        exit={{ opacity: 0, y: 15, filter: 'blur(4px)', position: 'absolute' }}
+        transition={{ duration: 0.3 }}
+        style={{ display: 'inline-block' }}
+      >
+        {value}
+      </motion.span>
+    </AnimatePresence>
+  );
+}
+
 function MetricCard({
   label,
   value,
   note,
-  tone = 'neutral'
+  tone = 'neutral',
+  icon: Icon
 }: {
   label: string;
   value: string;
   note: string;
   tone?: 'neutral' | 'good' | 'bad' | 'warn';
+  icon?: any;
 }) {
   return (
-    <article className={`metric-card metric-${tone}`}>
-      <span className="metric-label">{label}</span>
-      <strong className="metric-value">{value}</strong>
+    <motion.article variants={itemVariants} className={`metric-card metric-${tone}`}>
+      <div className="metric-label-container">
+        {Icon && <Icon className="metric-label-icon" size={16} />}
+        <span className="metric-label">{label}</span>
+      </div>
+      <strong className="metric-value">
+        <AnimatedNumber value={value} />
+      </strong>
       <span className="metric-note">{note}</span>
-    </article>
+    </motion.article>
   );
 }
 
 function PoolPanel({ pool, timezone }: { pool: PoolSnapshot; timezone: string }) {
   return (
-    <section className="panel-block">
+    <motion.section variants={itemVariants} className="panel-block">
       <div className="panel-head">
         <div>
-          <p className="panel-eyebrow">实时号池</p>
+          <p className="panel-eyebrow">
+            <Database size={14} /> 实时号池
+          </p>
           <h2>{pool.label}</h2>
         </div>
         <div className="panel-actions">
@@ -72,7 +110,7 @@ function PoolPanel({ pool, timezone }: { pool: PoolSnapshot; timezone: string })
             rel="noreferrer"
             className="open-link"
           >
-            新窗口打开
+            <ExternalLink size={14} /> 新窗口打开
           </a>
         </div>
       </div>
@@ -82,24 +120,28 @@ function PoolPanel({ pool, timezone }: { pool: PoolSnapshot; timezone: string })
           label="总账号"
           value={pool.available ? formatNumber(pool.accountMetrics.totalAccounts) : '--'}
           note="已返回的 auth-files 数量"
+          icon={Users}
         />
         <MetricCard
           label="可用账号"
           value={pool.available ? formatNumber(pool.accountMetrics.availableAccounts) : '--'}
           note="可立即参与调度"
           tone="good"
+          icon={CheckCircle2}
         />
         <MetricCard
           label="异常 / 冷却"
           value={pool.available ? formatNumber(pool.accountMetrics.unhealthyAccounts) : '--'}
-          note="error / pending / refreshing / cooldown"
+          note="error / pending / refreshing"
           tone="warn"
+          icon={AlertCircle}
         />
         <MetricCard
           label="已禁用"
           value={pool.available ? formatNumber(pool.accountMetrics.disabledAccounts) : '--'}
           note="管理端明确禁用的账号"
           tone="bad"
+          icon={Ban}
         />
       </div>
 
@@ -108,31 +150,36 @@ function PoolPanel({ pool, timezone }: { pool: PoolSnapshot; timezone: string })
           label="累计请求"
           value={pool.available ? formatNumber(pool.usageMetrics.totalRequests) : '--'}
           note="来自 /v0/management/usage"
+          icon={Activity}
         />
         <MetricCard
           label="今日请求"
           value={pool.available ? formatNumber(pool.usageMetrics.todayRequests) : '--'}
           note={`按 ${timezone} 展示`}
+          icon={Zap}
         />
         <MetricCard
           label="累计 Token"
           value={pool.available ? formatNumber(pool.usageMetrics.totalTokens) : '--'}
           note="服务聚合后的 token 总量"
+          icon={FileDigit}
         />
         <MetricCard
           label="失败请求"
           value={pool.available ? formatNumber(pool.usageMetrics.failedRequests) : '--'}
           note={`成功 ${formatNumber(pool.usageMetrics.successRequests)}`}
+          icon={XCircle}
         />
       </div>
 
       <p className="panel-foot">
+        <Clock size={14} />
         {pool.status.message}
         {pool.status.lastSuccessAt
-          ? `，最近成功：${formatDateTime(pool.status.lastSuccessAt, timezone)}`
+          ? `，同步于 ${formatDateTime(pool.status.lastSuccessAt, timezone)}`
           : ''}
       </p>
-    </section>
+    </motion.section>
   );
 }
 
@@ -144,10 +191,12 @@ function DistributionPanel({
   timezone: string;
 }) {
   return (
-    <section className="panel-block distribution-panel">
+    <motion.section variants={itemVariants} className="panel-block distribution-panel">
       <div className="panel-head">
         <div>
-          <p className="panel-eyebrow">分发请求</p>
+          <p className="panel-eyebrow">
+            <Globe2 size={14} /> 分发请求
+          </p>
           <h2>{distribution.label}</h2>
         </div>
         <span className={`status-pill ${statusTone(distribution.status)}`}>
@@ -160,41 +209,46 @@ function DistributionPanel({
           label="今日请求"
           value={distribution.available ? formatNumber(distribution.metrics.todayRequests) : '--'}
           note={`按 ${timezone} 统计`}
+          icon={Zap}
         />
         <MetricCard
-          label="24 小时请求"
+          label="24小时请求"
           value={distribution.available ? formatNumber(distribution.metrics.requests24h) : '--'}
           note="滚动 24h usage 日志"
+          icon={Activity}
         />
         <MetricCard
-          label="24 小时活跃用户"
+          label="24小时活跃用户"
           value={
             distribution.available ? formatNumber(distribution.metrics.activeUsers24h) : '--'
           }
           note="按 userId 去重"
+          icon={Users}
         />
         <MetricCard
-          label="10 分钟均速"
+          label="10分钟均速"
           value={distribution.available ? formatRps(distribution.metrics.avgRps10m) : '--'}
           note="最近 10 分钟请求 / 600 秒"
+          icon={Server}
         />
       </div>
 
       <p className="panel-foot">
+        <Clock size={14} />
         {distribution.status.message}
         {distribution.status.lastSuccessAt
-          ? `，最近成功：${formatDateTime(distribution.status.lastSuccessAt, timezone)}`
+          ? `，同步于 ${formatDateTime(distribution.status.lastSuccessAt, timezone)}`
           : ''}
       </p>
-    </section>
+    </motion.section>
   );
 }
 
 function SourceRail({ sources, timezone }: { sources: SourceStatus[]; timezone: string }) {
   return (
-    <section className="source-rail">
+    <motion.section variants={containerVariants} initial="hidden" animate="show" className="source-rail">
       {sources.map((source) => (
-        <article key={source.sourceId} className={`source-card ${statusTone(source)}`}>
+        <motion.article variants={itemVariants} key={source.sourceId} className={`source-card ${statusTone(source)}`}>
           <div className="source-card-head">
             <span>{source.label}</span>
             <span className="source-state">
@@ -203,13 +257,14 @@ function SourceRail({ sources, timezone }: { sources: SourceStatus[]; timezone: 
           </div>
           <p>{source.message}</p>
           <span className="source-time">
+            <RefreshCcw size={12} />
             {source.lastSuccessAt
               ? `最近成功 ${formatRelativeTime(source.lastSuccessAt)}`
               : `最近成功 ${formatDateTime(source.lastSuccessAt, timezone)}`}
           </span>
-        </article>
+        </motion.article>
       ))}
-    </section>
+    </motion.section>
   );
 }
 
@@ -231,25 +286,29 @@ export function LiveDashboard({ initialData }: { initialData: DashboardOverview 
       {
         label: '总账号',
         value: data.hasAnyData ? formatNumber(data.summary.totalAccounts) : '--',
-        note: '两个号池合并后去重前数量'
+        note: '两个号池合并后去重前数量',
+        icon: Users
       },
       {
         label: '可用账号',
         value: data.hasAnyData ? formatNumber(data.summary.availableAccounts) : '--',
         note: '可即时参与调度的账号',
-        tone: 'good' as const
+        tone: 'good' as const,
+        icon: CheckCircle2
       },
       {
         label: '异常 / 冷却',
         value: data.hasAnyData ? formatNumber(data.summary.unhealthyAccounts) : '--',
         note: '临时错误、待刷新、冷却中的账号',
-        tone: 'warn' as const
+        tone: 'warn' as const,
+        icon: AlertCircle
       },
       {
         label: '已禁用',
         value: data.hasAnyData ? formatNumber(data.summary.disabledAccounts) : '--',
         note: '管理端显式停用的账号',
-        tone: 'bad' as const
+        tone: 'bad' as const,
+        icon: Ban
       }
     ],
     [data]
@@ -298,9 +357,16 @@ export function LiveDashboard({ initialData }: { initialData: DashboardOverview 
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
 
-      <section className="hero-panel">
+      <motion.section 
+        className="hero-panel"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+      >
         <div className="hero-copy">
-          <p className="hero-kicker">实时聚合看板</p>
+          <p className="hero-kicker">
+            <LayoutDashboard size={16} /> 实时聚合看板
+          </p>
           <h1>OPENAI 实时号池</h1>
           <p className="hero-description">
             聚合两个 CLIProxyAPI 号池和 sub2api 请求指标，默认每 {data.refreshSeconds} 秒刷新一次。
@@ -313,25 +379,46 @@ export function LiveDashboard({ initialData }: { initialData: DashboardOverview 
             {data.hasFreshData ? '实时中' : '缓存中'}
           </div>
           <div className="hero-meta">
-            <span>时区：{data.timezone}</span>
-            <span>下次刷新：{countdown}s</span>
-            <span>生成时间：{formatDateTime(data.generatedAt, data.timezone)}</span>
+            <span><Globe2 size={12} /> 时区：{data.timezone}</span>
+            <span>
+              <motion.div
+                animate={{ rotate: isPending ? 360 : 0 }}
+                transition={{ repeat: isPending ? Infinity : 0, duration: 1, ease: 'linear' }}
+                style={{ display: 'inline-flex', alignItems: 'center' }}
+              >
+                <RefreshCcw size={12} />
+              </motion.div>
+              {' '}下次刷新：{countdown}s
+            </span>
+            <span><Clock size={12} /> 生成时间：{formatDateTime(data.generatedAt, data.timezone)}</span>
           </div>
         </div>
-      </section>
+      </motion.section>
 
-      {(banner || data.notices.length > 0) && (
-        <section className="notice-stack">
-          {banner ? <div className="notice-banner">{banner}</div> : null}
-          {data.notices.map((notice) => (
-            <div key={notice} className="notice-banner muted">
-              {notice}
-            </div>
-          ))}
-        </section>
-      )}
+      <AnimatePresence>
+        {(banner || data.notices.length > 0) && (
+          <motion.section 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="notice-stack"
+          >
+            {banner ? <div className="notice-banner"><AlertCircle size={16}/> {banner}</div> : null}
+            {data.notices.map((notice) => (
+              <div key={notice} className="notice-banner muted">
+                <AlertCircle size={16}/> {notice}
+              </div>
+            ))}
+          </motion.section>
+        )}
+      </AnimatePresence>
 
-      <section className="hero-metrics">
+      <motion.section 
+        className="hero-metrics"
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
+      >
         {heroCards.map((item) => (
           <MetricCard
             key={item.label}
@@ -339,25 +426,40 @@ export function LiveDashboard({ initialData }: { initialData: DashboardOverview 
             value={item.value}
             note={item.note}
             tone={item.tone}
+            icon={item.icon}
           />
         ))}
-      </section>
+      </motion.section>
 
-      <section className="panel-grid">
+      <motion.section 
+        className="panel-grid"
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
+      >
         {data.pools.map((pool) => (
           <PoolPanel key={pool.id} pool={pool} timezone={data.timezone} />
         ))}
-      </section>
+      </motion.section>
 
-      <DistributionPanel distribution={data.distribution} timezone={data.timezone} />
+      <motion.div variants={containerVariants} initial="hidden" animate="show">
+        <DistributionPanel distribution={data.distribution} timezone={data.timezone} />
+      </motion.div>
 
-      <section className="footer-band">
+      <motion.section 
+        className="footer-band"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.5, duration: 0.5 }}
+      >
         <div>
-          <p className="panel-eyebrow">来源健康度</p>
+          <p className="panel-eyebrow">
+            <Activity size={16} /> 来源健康度
+          </p>
           <h2>上游状态轨道</h2>
         </div>
         <SourceRail sources={data.sources} timezone={data.timezone} />
-      </section>
+      </motion.section>
     </main>
   );
 }
